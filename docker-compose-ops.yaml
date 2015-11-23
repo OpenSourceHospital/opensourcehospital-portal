@@ -1,0 +1,95 @@
+version: "3.8"
+services:
+
+  build-api:
+    extends:
+      file: docker-compose.yaml
+      service: api-base
+    build:
+      context: ./patient-portal/
+      dockerfile: ./Dockerfile
+    restart: "no"
+
+  demo-data:
+    extends:
+      file: docker-compose.yaml
+      service: mysql
+    volumes:
+      - demo_sql_files:/sql
+    command: sh -c "mysql -v --host mysql -u ${MARIADB_USER} -p${MARIADB_PASSWORD} ${MARIADB_DATABASE} < /sql/load-data-demo.sql"
+    
+  delete-all-data:
+    extends:
+      file: docker-compose.yaml
+      service: mysql
+    volumes:
+      - demo_sql_files:/sql
+    command: sh -c "mysql -v --host mysql -u ${MARIADB_USER} -p${MARIADB_PASSWORD} ${MARIADB_DATABASE} < /sql/delete-all-data.sql"
+          
+  ui-dev:
+    image: patient-portal-ui-dev-image:latest
+    build:
+      context: ./patient-portal-ui
+      dockerfile: Dockerfile-dev
+    ports:
+      - 3001:80
+    volumes:
+      - ui_files:/app
+    environment:
+      - WATCHPACK_POLLING=true
+      #- CHOKIDAR_USEPOLLING=true to understand if it is really needed
+    working_dir: /app
+    
+  build-ui-dev:
+    extends:
+      service: ui-dev
+    command: ["npm", "run", "build"]
+
+  init-api:
+    extends:
+      file: docker-compose.yaml
+      service: api-base
+    restart: "no"
+    command: ["java", "-jar", "patientportal-0.0.1-SNAPSHOT.jar", "--spring.profiles.active=init"]
+    
+  update-api:
+    extends:
+      file: docker-compose.yaml
+      service: api-base
+    restart: "no"
+    command: ["java", "-jar", "patientportal-0.0.1-SNAPSHOT.jar", "--spring.profiles.active=update"]
+ 
+  flyway-migrate:
+    image: flyway/flyway:8.5.13
+    extends:
+      file: docker-compose.yaml
+      service: api-base
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${MARIADB_DATABASE}
+      MARIADB_USER: ${MARIADB_USER}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD}
+    volumes:
+      - sql_files:/flyway/sql/migrations
+    command:
+      - -url=jdbc:mariadb://mysql:3306/${MARIADB_DATABASE}?createDatabaseIfNotExist=true
+      - -connectRetries=60 
+      - -user=${MARIADB_USER}
+      - -password=${MARIADB_PASSWORD}
+      - migrate
+
+volumes:
+
+  ui_files:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ${ROOT}/patient-portal-ui
+      
+  demo_sql_files:
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: ${ROOT}/patient-portal/sql
