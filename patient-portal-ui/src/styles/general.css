@@ -1,0 +1,13 @@
+.button_group_f button {
+  border-radius: 50px !important;
+  margin-right: 0.4em !important;
+  border: 1px solid !important;
+  padding-top: 0em !important;
+  padding-bottom: 0em !important;
+}
+.only_smart{
+  text-align: center;
+  font-weight: bold;
+  margin-top: 2em;
+  font-size: 2em;
+}
